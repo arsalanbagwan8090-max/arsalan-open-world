@@ -1,0 +1,206 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ARSALAN OPEN WORLD</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;overflow:hidden;font-family:Arial;background:#87ceeb}
+#info{position:absolute;top:12px;left:12px;color:white;
+background:#0009;padding:12px;border-radius:10px;z-index:2}
+#pad{position:absolute;bottom:35px;left:35px;width:120px;height:120px;
+border-radius:50%;background:#ffffff55;border:2px solid white;touch-action:none}
+#stick{position:absolute;width:48px;height:48px;left:34px;top:34px;
+border-radius:50%;background:#fff;border:2px solid #555}
+#hint{position:absolute;bottom:12px;right:12px;color:white;background:#0008;
+padding:10px;border-radius:8px}
+</style>
+</head>
+<body>
+<div id="info"><b>ARSALAN OPEN WORLD</b><br>3D CITY EXPLORER</div>
+<div id="pad"><div id="stick"></div></div>
+<div id="hint">Joystick se chalo</div>
+
+<script type="importmap">
+{
+ "imports":{
+  "three":"https://cdn.jsdelivr.net/npm/three@0.180.0/build/three.module.js"
+ }
+}
+</script>
+
+<script type="module">
+import * as THREE from "three";
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87ceeb);
+scene.fog = new THREE.Fog(0x87ceeb,40,180);
+
+const camera = new THREE.PerspectiveCamera(
+65,innerWidth/innerHeight,0.1,500
+);
+
+const renderer = new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(innerWidth,innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,1.5));
+renderer.shadowMap.enabled=true;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.HemisphereLight(0xffffff,0x667755,2));
+
+const sun = new THREE.DirectionalLight(0xffffff,2);
+sun.position.set(30,60,20);
+sun.castShadow=true;
+scene.add(sun);
+
+// Ground
+const ground = new THREE.Mesh(
+new THREE.PlaneGeometry(500,500),
+new THREE.MeshStandardMaterial({color:0x47834b})
+);
+ground.rotation.x=-Math.PI/2;
+ground.receiveShadow=true;
+scene.add(ground);
+
+// Roads
+function road(x,z,w,d){
+const r=new THREE.Mesh(
+new THREE.PlaneGeometry(w,d),
+new THREE.MeshStandardMaterial({color:0x333333})
+);
+r.rotation.x=-Math.PI/2;
+r.position.set(x,0.03,z);
+scene.add(r);
+}
+road(0,0,18,400);
+road(0,0,400,18);
+road(35,0,12,400);
+road(-35,0,12,400);
+road(0,35,400,12);
+road(0,-35,400,12);
+
+// Buildings
+for(let x=-90;x<=90;x+=30){
+ for(let z=-90;z<=90;z+=30){
+  if(Math.abs(x)<22 || Math.abs(z)<22) continue;
+  const h=8+Math.random()*30;
+  const b=new THREE.Mesh(
+   new THREE.BoxGeometry(12,h,12),
+   new THREE.MeshStandardMaterial({
+    color:new THREE.Color().setHSL(
+    0.55+Math.random()*0.12,0.18,0.45+Math.random()*0.2)
+   })
+  );
+  b.position.set(x,h/2,z);
+  b.castShadow=true;
+  b.receiveShadow=true;
+  scene.add(b);
+ }
+}
+
+// Player
+const player=new THREE.Group();
+
+const body=new THREE.Mesh(
+ new THREE.CapsuleGeometry(0.65,1.2,4,8),
+ new THREE.MeshStandardMaterial({color:0x2455dd})
+);
+body.position.y=1.1;
+body.castShadow=true;
+player.add(body);
+
+const head=new THREE.Mesh(
+ new THREE.SphereGeometry(0.42,16,16),
+ new THREE.MeshStandardMaterial({color:0xe3ad83})
+);
+head.position.y=2.15;
+player.add(head);
+
+player.position.set(0,0,0);
+scene.add(player);
+
+// Joystick
+const pad=document.getElementById("pad");
+const stick=document.getElementById("stick");
+let joyX=0,joyY=0,active=false;
+
+function joystick(e){
+ const r=pad.getBoundingClientRect();
+ let x=e.clientX-(r.left+r.width/2);
+ let y=e.clientY-(r.top+r.height/2);
+ const max=38;
+ const len=Math.hypot(x,y);
+ if(len>max){x=x/len*max;y=y/len*max;}
+ joyX=x/max;
+ joyY=y/max;
+ stick.style.left=(34+x)+"px";
+ stick.style.top=(34+y)+"px";
+}
+pad.addEventListener("pointerdown",e=>{
+ active=true;pad.setPointerCapture(e.pointerId);joystick(e);
+});
+pad.addEventListener("pointermove",e=>{
+ if(active)joystick(e);
+});
+function stop(){
+ active=false;joyX=0;joyY=0;
+ stick.style.left="34px";stick.style.top="34px";
+}
+pad.addEventListener("pointerup",stop);
+pad.addEventListener("pointercancel",stop);
+
+// Keyboard support
+const keys={};
+addEventListener("keydown",e=>keys[e.key.toLowerCase()]=true);
+addEventListener("keyup",e=>keys[e.key.toLowerCase()]=false);
+
+// Game loop
+const clock=new THREE.Clock();
+
+function animate(){
+ requestAnimationFrame(animate);
+ const dt=Math.min(clock.getDelta(),0.05);
+
+ let x=joyX;
+ let z=joyY;
+
+ if(keys["w"]||keys["arrowup"])z=-1;
+ if(keys["s"]||keys["arrowdown"])z=1;
+ if(keys["a"]||keys["arrowleft"])x=-1;
+ if(keys["d"]||keys["arrowright"])x=1;
+
+ const moving=Math.hypot(x,z)>0.1;
+
+ if(moving){
+  const angle=Math.atan2(x,z);
+  player.rotation.y=angle;
+  player.position.x+=Math.sin(angle)*dt*12;
+  player.position.z+=Math.cos(angle)*dt*12;
+ }
+
+ // Camera follows player
+ const offset=new THREE.Vector3(0,7,12);
+ offset.applyAxisAngle(
+ new THREE.Vector3(0,1,0),player.rotation.y
+ );
+ const target=player.position.clone().add(offset);
+
+ camera.position.lerp(target,0.08);
+ camera.lookAt(
+ player.position.x,player.position.y+1,player.position.z
+ );
+
+ renderer.render(scene,camera);
+}
+animate();
+
+addEventListener("resize",()=>{
+ camera.aspect=innerWidth/innerHeight;
+ camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);
+});
+</script>
+</body>
+</html>
